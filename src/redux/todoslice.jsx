@@ -1,15 +1,41 @@
 import { createSlice } from '@reduxjs/toolkit';
+import CryptoJS from 'crypto-js';
+
+const SECRET_KEY = 'k2FfAcD82b3eBzgTdH5GbC0PFdUcwOu0'; 
 
 const initialState = {
   list: [],
   input: '',
   isEditing: false,
-  editingIndex: -1,
+  editIndex: null,
+};
+
+const encryptData = (data) => {
+  return CryptoJS.AES.encrypt(JSON.stringify(data), SECRET_KEY).toString();
+};
+
+const decryptData = (ciphertext) => {
+  const bytes = CryptoJS.AES.decrypt(ciphertext, SECRET_KEY);
+  const decryptedData = bytes.toString(CryptoJS.enc.Utf8);
+  return JSON.parse(decryptedData);
+};
+
+const loadFromLocalStorage = () => {
+  const savedTodos = localStorage.getItem('todos');
+  if (savedTodos) {
+    try {
+      return decryptData(savedTodos);
+    } catch (e) {
+      console.error('Error decrypting data from local storage', e);
+      return initialState;
+    }
+  }
+  return initialState;
 };
 
 const todosSlice = createSlice({
   name: 'todos',
-  initialState,
+  initialState: loadFromLocalStorage(),
   reducers: {
     setInput: (state, action) => {
       state.input = action.payload;
@@ -19,11 +45,11 @@ const todosSlice = createSlice({
       state.input = '';
     },
     updateTask: (state) => {
-      if (state.editingIndex > -1) {
-        state.list[state.editingIndex].text = state.input;
-        state.isEditing = false;
-        state.editingIndex = -1;
+      if (state.editIndex !== null) {
+        state.list[state.editIndex].text = state.input;
         state.input = '';
+        state.isEditing = false;
+        state.editIndex = null;
       }
     },
     deleteTask: (state, action) => {
@@ -32,14 +58,15 @@ const todosSlice = createSlice({
     editTask: (state, action) => {
       state.input = state.list[action.payload].text;
       state.isEditing = true;
-      state.editingIndex = action.payload;
+      state.editIndex = action.payload;
     },
     toggleComplete: (state, action) => {
       const task = state.list[action.payload];
       task.completed = !task.completed;
     },
     saveToLocalStorage: (state) => {
-      localStorage.setItem('todos', JSON.stringify(state.list));
+      const encryptedTodos = encryptData(state);
+      localStorage.setItem('todos', encryptedTodos);
     },
   },
 });
